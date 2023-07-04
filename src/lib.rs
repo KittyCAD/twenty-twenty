@@ -13,9 +13,9 @@
 //! Use it like this for an H.264 frame:
 //!
 //! ```no_run
-//! # fn get_frame() -> (u32, u32, Vec<u8>) {
-//! #     (0, 0, vec![])
-//! # }
+//! fn get_frame() -> (u32, u32, Vec<u8>) {
+//!     (0, 0, vec![])
+//! }
 //!
 //! let (width, height, actual) = get_frame();
 //! twenty_twenty::assert_h264_frame("frame_image.png", width, height, &actual, 0.9);
@@ -23,9 +23,9 @@
 //! Use it like this for an image:
 //!
 //! ```no_run
-//! # fn get_image() -> image::DynamicImage {
-//! #    todo!()
-//! # }
+//! fn get_image() -> image::DynamicImage {
+//!    todo!()
+//! }
 //!
 //! let actual = get_image();
 //! twenty_twenty::assert_image("og_image.png", &actual, 0.9);
@@ -49,11 +49,7 @@ const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 /// The score is a float between 0 and 1.
 /// If the images are the exact same, the score will be 1.
 #[track_caller]
-pub fn assert_image<P: AsRef<std::path::Path>>(
-    path: P,
-    actual: &image::DynamicImage,
-    threshold: f64,
-) {
+pub fn assert_image<P: AsRef<std::path::Path>>(path: P, actual: &image::DynamicImage, threshold: f64) {
     if let Err(e) = assert_image_impl(path, actual, threshold) {
         panic!("assertion failed: {e}")
     }
@@ -66,13 +62,7 @@ pub fn assert_image<P: AsRef<std::path::Path>>(
 /// The score is a float between 0 and 1.
 /// If the images are the exact same, the score will be 1.
 #[track_caller]
-pub fn assert_h264_frame<P: AsRef<std::path::Path>>(
-    path: P,
-    width: u32,
-    height: u32,
-    actual: &[u8],
-    threshold: f64,
-) {
+pub fn assert_h264_frame<P: AsRef<std::path::Path>>(path: P, width: u32, height: u32, actual: &[u8], threshold: f64) {
     match h264_frame_to_image(width, height, actual) {
         Ok(image) => {
             if let Err(e) = assert_image_impl(path, &image, threshold) {
@@ -86,11 +76,7 @@ pub fn assert_h264_frame<P: AsRef<std::path::Path>>(
 }
 
 // Convert a H264 frame to an image.
-pub(crate) fn h264_frame_to_image(
-    width: u32,
-    height: u32,
-    data: &[u8],
-) -> Result<image::DynamicImage> {
+pub(crate) fn h264_frame_to_image(width: u32, height: u32, data: &[u8]) -> Result<image::DynamicImage> {
     let Some(raw) = image::RgbaImage::from_raw(width, height, data.to_vec()) else {
         anyhow::bail!("could not parse image from raw");
     };
@@ -117,21 +103,18 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
             Ok(s) => s.decode().expect("decoding image from path failed"),
             Err(e) => match e.kind() {
                 // We take the dimensions from the original image.
-                std::io::ErrorKind::NotFound => {
-                    image::DynamicImage::new_rgba16(actual.width(), actual.height())
-                }
+                std::io::ErrorKind::NotFound => image::DynamicImage::new_rgba16(actual.width(), actual.height()),
                 _ => panic!("unable to read contents of {}: {}", path.display(), e),
             },
         };
 
         // Compare the two images.
-        let result =
-            match image_compare::rgba_hybrid_compare(&expected.to_rgba8(), &actual.to_rgba8()) {
-                Ok(result) => result,
-                Err(err) => {
-                    panic!("could not compare the images {err}")
-                }
-            };
+        let result = match image_compare::rgba_hybrid_compare(&expected.to_rgba8(), &actual.to_rgba8()) {
+            Ok(result) => result,
+            Err(err) => {
+                panic!("could not compare the images {err}")
+            }
+        };
 
         // The SSIM score should be near 0, this is tweakable from the consumer, since they likely
         // have different thresholds.
