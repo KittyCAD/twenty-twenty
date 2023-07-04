@@ -9,8 +9,12 @@ fn good() {
     assert_image("tests/dog1.png", &actual, 1.0);
 }
 
-/*#[test]
+#[test]
 #[should_panic]
 fn bad() {
-todo!()
-}*/
+    let actual = image::io::Reader::open("tests/dog1.png")
+        .unwrap()
+        .decode()
+        .unwrap();
+    assert_image("tests/dog2.png", &actual, 1.0);
+}
