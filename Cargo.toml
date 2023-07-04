@@ -1,7 +1,9 @@
 [package]
 name = "twenty-twenty"
+description = "Visual regression testing of H264 frames and images."
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
