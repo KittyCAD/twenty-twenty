@@ -1,4 +1,22 @@
 //! The twenty-twenty library allows for visual regression testing of H.264 frames and images.
+//! It makes it easy to update the contents when should be updated to match the new results.
+//!
+//! Use it like this:
+//!
+//! ```rust
+//! # fn get_frame() -> (u32, u32, Vec<u8>) {
+//! #     (0, 0, vec![])
+//! # }
+//!
+//! let (width, height, actual) = get_frame();
+//! twenty_twenty::assert_h264_frame("frame_image.png", width, height, actual, 0.1);
+//! ```
+//!
+//! If the output doesn't match, the program will panic! and emit the
+//! difference in the score.
+//!
+//! To accept the changes from `get_frame()`, run with `TWENTY_TWENTY=overwrite`.
+
 #![deny(missing_docs)]
 
 use anyhow::Result;
@@ -9,6 +27,7 @@ const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 /// The threshold is the highest possible "score" you are willing for the image
 /// comparison to return. If the resulting score is greater than the threshold,
 /// the test will fail.
+/// The score is a float between 0 and 1.
 #[track_caller]
 pub fn assert_image<P: AsRef<std::path::Path>>(
     path: P,
@@ -25,6 +44,7 @@ pub fn assert_image<P: AsRef<std::path::Path>>(
 /// The threshold is the highest possible "score" you are willing for the image
 /// comparison to return. If the resulting score is greater than the threshold,
 /// the test will fail.
+/// The score is a float between 0 and 1.
 #[track_caller]
 pub fn assert_h264_frame<P: AsRef<std::path::Path>>(
     path: P,
