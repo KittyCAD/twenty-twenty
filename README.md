@@ -31,3 +31,12 @@ If the output doesn't match, the program will `panic!` and emit the
 difference in the score.
 
 To accept the changes from `get_frame()` or `get_image()`, run with `TWENTY_TWENTY=overwrite`.
+
+## Publishing a new release
+
+We have a GitHub action that pushes our releases [here](https://github.com/KittyCAD/twenty-twenty/blob/main/.github/workflows/make-release.yml). It is triggered by
+pushing a new tag. So do the following:
+
+1. Bump the version in `Cargo.toml`. Commit it and push it up to the repo.
+2. Create a tag with the new version: `git tag -sa v$(VERSION) -m "v$(VERSION)"`
+3. Push the tag to the repo: `git push origin v$(VERSION)`
