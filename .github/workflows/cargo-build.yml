@@ -33,7 +33,7 @@ jobs:
             components: rustfmt, clippy
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.5.0
+        uses: Swatinem/rust-cache@v2.5.1
 
       - name: Run cargo build
         run: |
