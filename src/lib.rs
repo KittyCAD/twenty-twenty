@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 
-const env_var: &str = "TWENTY_TWENTY";
+const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
 /// Convert a H264 frame to an image.
 pub fn h264_frame_to_image(width: u32, height: u32, data: &[u8]) -> Result<image::DynamicImage> {
@@ -27,7 +27,7 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
     actual: &image::DynamicImage,
 ) -> Result<()> {
     let path = path.as_ref();
-    let var = std::env::var_os(env_var);
+    let var = std::env::var_os(CRATE_ENV_VAR);
     let overwrite = var.as_deref().and_then(std::ffi::OsStr::to_str) == Some("overwrite");
 
     if overwrite {
@@ -36,7 +36,7 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
         }
     } else {
         // Treat a nonexistent file like an empty image.
-        let expected_image = match image::io::Reader::open(path) {
+        let _expected_image = match image::io::Reader::open(path) {
             Ok(s) => s.decode()?,
             Err(e) => match e.kind() {
                 // TODO: fix dimensions.
