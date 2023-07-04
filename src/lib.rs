@@ -1,31 +1,68 @@
-//! The twenty-twenty library allows for visual regression testing of H264 frames and images.
+//! The twenty-twenty library allows for visual regression testing of H.264 frames and images.
 #![deny(missing_docs)]
 
 use anyhow::Result;
 
 const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
-/// Convert a H264 frame to an image.
-pub fn h264_frame_to_image(width: u32, height: u32, data: &[u8]) -> Result<image::DynamicImage> {
-    let Some(raw) = image::RgbImage::from_raw(width, height, data.to_vec()) else {
+/// Compare the contents of the file to the image provided.
+/// The threshold is the highest possible "score" you are willing for the image
+/// comparison to return. If the resulting score is greater than the threshold,
+/// the test will fail.
+#[track_caller]
+pub fn assert_image<P: AsRef<std::path::Path>>(
+    path: P,
+    actual: &image::DynamicImage,
+
+    threshold: f64,
+) {
+    if let Err(e) = assert_image_impl(path, actual, threshold) {
+        panic!("assertion failed: {e}")
+    }
+}
+
+/// Compare the contents of the file to the H.264 frame provided.
+/// The threshold is the highest possible "score" you are willing for the image
+/// comparison to return. If the resulting score is greater than the threshold,
+/// the test will fail.
+#[track_caller]
+pub fn assert_h264_frame<P: AsRef<std::path::Path>>(
+    path: P,
+    width: u32,
+    height: u32,
+    actual: &[u8],
+    threshold: f64,
+) {
+    match h264_frame_to_image(width, height, actual) {
+        Ok(image) => {
+            if let Err(e) = assert_image_impl(path, &image, threshold) {
+                panic!("assertion failed: {e}")
+            }
+        }
+        Err(e) => {
+            panic!("could not convert H.264 frame to image: {e}")
+        }
+    }
+}
+
+// Convert a H264 frame to an image.
+pub(crate) fn h264_frame_to_image(
+    width: u32,
+    height: u32,
+    data: &[u8],
+) -> Result<image::DynamicImage> {
+    let Some(raw) = image::RgbaImage::from_raw(width, height, data.to_vec()) else {
         anyhow::bail!("could not parse image from raw");
     };
 
-    Ok(image::DynamicImage::ImageRgb8(raw))
-}
-
-/// Compare the contents of the file to the image provided.
-#[track_caller]
-pub fn assert_image<P: AsRef<std::path::Path>>(path: P, actual: &image::DynamicImage) {
-    if let Err(e) = assert_image_impl(path, actual) {
-        panic!("assertion failed: {e}")
-    }
+    Ok(image::DynamicImage::ImageRgba8(raw))
 }
 
 pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
     path: P,
     actual: &image::DynamicImage,
-) -> Result<()> {
+    threshold: f64,
+) -> Result<(), String> {
     let path = path.as_ref();
     let var = std::env::var_os(CRATE_ENV_VAR);
     let overwrite = var.as_deref().and_then(std::ffi::OsStr::to_str) == Some("overwrite");
@@ -36,8 +73,8 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
         }
     } else {
         // Treat a nonexistent file like an empty image.
-        let _expected_image = match image::io::Reader::open(path) {
-            Ok(s) => s.decode()?,
+        let expected = match image::io::Reader::open(path) {
+            Ok(s) => s.decode().expect("decoding image from path failed"),
             Err(e) => match e.kind() {
                 // TODO: fix dimensions.
                 std::io::ErrorKind::NotFound => image::DynamicImage::new_rgba16(0, 0),
@@ -46,6 +83,27 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
         };
 
         // Compare the two images.
+        let result =
+            match image_compare::rgba_hybrid_compare(&expected.to_rgba8(), &actual.to_rgba8()) {
+                Ok(result) => result,
+                Err(err) => {
+                    panic!("could not compare the images {err}")
+                }
+            };
+
+        // The SSIM score should be near 0, this is tweakable from the consumer, since they likely
+        // have different thresholds.
+        if result.score > threshold {
+            return Err(format!(
+                r#"image (`{}`) score is `{}` which is greater than threshold `{}`
+                set {}=overwrite if these changes are intentional"#,
+                path.display(),
+                result.score,
+                threshold,
+                CRATE_ENV_VAR
+            ));
+        }
     }
+
     Ok(())
 }

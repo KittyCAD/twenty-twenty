@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0.71", features = ["backtrace"] }
 image = "0.24.6"
+image-compare = "0.3.0"
