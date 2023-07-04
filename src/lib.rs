@@ -3,13 +3,13 @@
 //!
 //! Use it like this:
 //!
-//! ```rust
+//! ```no_run
 //! # fn get_frame() -> (u32, u32, Vec<u8>) {
 //! #     (0, 0, vec![])
 //! # }
 //!
 //! let (width, height, actual) = get_frame();
-//! twenty_twenty::assert_h264_frame("frame_image.png", width, height, actual, 0.1);
+//! twenty_twenty::assert_h264_frame("frame_image.png", width, height, &actual, 1.0);
 //! ```
 //!
 //! If the output doesn't match, the program will panic! and emit the
@@ -24,15 +24,15 @@ use anyhow::Result;
 const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
 /// Compare the contents of the file to the image provided.
-/// The threshold is the highest possible "score" you are willing for the image
-/// comparison to return. If the resulting score is greater than the threshold,
+/// The threshold is the lowest possible "score" you are willing for the image
+/// comparison to return. If the resulting score is less than than the threshold,
 /// the test will fail.
 /// The score is a float between 0 and 1.
+/// If the images are the exact same, the score will be 1.
 #[track_caller]
 pub fn assert_image<P: AsRef<std::path::Path>>(
     path: P,
     actual: &image::DynamicImage,
-
     threshold: f64,
 ) {
     if let Err(e) = assert_image_impl(path, actual, threshold) {
@@ -41,10 +41,11 @@ pub fn assert_image<P: AsRef<std::path::Path>>(
 }
 
 /// Compare the contents of the file to the H.264 frame provided.
-/// The threshold is the highest possible "score" you are willing for the image
-/// comparison to return. If the resulting score is greater than the threshold,
+/// The threshold is the lowest possible "score" you are willing for the image
+/// comparison to return. If the resulting score is less than than the threshold,
 /// the test will fail.
 /// The score is a float between 0 and 1.
+/// If the images are the exact same, the score will be 1.
 #[track_caller]
 pub fn assert_h264_frame<P: AsRef<std::path::Path>>(
     path: P,
@@ -113,9 +114,9 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
 
         // The SSIM score should be near 0, this is tweakable from the consumer, since they likely
         // have different thresholds.
-        if result.score > threshold {
+        if result.score < threshold {
             return Err(format!(
-                r#"image (`{}`) score is `{}` which is greater than threshold `{}`
+                r#"image (`{}`) score is `{}` which is less than than threshold `{}`
                 set {}=overwrite if these changes are intentional"#,
                 path.display(),
                 result.score,
