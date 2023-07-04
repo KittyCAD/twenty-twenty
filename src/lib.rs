@@ -116,8 +116,10 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
         let expected = match image::io::Reader::open(path) {
             Ok(s) => s.decode().expect("decoding image from path failed"),
             Err(e) => match e.kind() {
-                // TODO: fix dimensions.
-                std::io::ErrorKind::NotFound => image::DynamicImage::new_rgba16(0, 0),
+                // We take the dimensions from the original image.
+                std::io::ErrorKind::NotFound => {
+                    image::DynamicImage::new_rgba16(actual.width(), actual.height())
+                }
                 _ => panic!("unable to read contents of {}: {}", path.display(), e),
             },
         };
