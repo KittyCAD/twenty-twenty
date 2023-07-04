@@ -5,9 +5,7 @@ use anyhow::Result;
 
 /// Convert a H264 frame to an image.
 pub fn h264_frame_to_image(width: u32, height: u32, data: &[u8]) -> Result<image::DynamicImage> {
-    let raw = if let Some(raw) = image::RgbImage::from_raw(width, height, data.to_vec()) {
-        raw
-    } else {
+    let Some(raw) = image::RgbImage::from_raw(width, height, data.to_vec()) else {
         anyhow::bail!("could not parse image from raw");
     };
 
