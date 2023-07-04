@@ -6,6 +6,10 @@
 //! will fail. The score must be a number between 0 and 1. If the images are the exact same, the
 //! score will be 1.
 //!
+//! The underlying algorithm is SSIM, which is a perceptual metric that quantifies the image
+//! quality degradation that is caused by processing such as data compression or by losses in data
+//! transmission. More information can be found [here](https://en.wikipedia.org/wiki/Structural_similarity).
+//!
 //! Use it like this for an H.264 frame:
 //!
 //! ```no_run
