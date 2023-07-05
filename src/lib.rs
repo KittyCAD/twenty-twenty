@@ -66,7 +66,7 @@ pub fn assert_image<P: AsRef<std::path::Path>>(path: P, actual: &image::DynamicI
 /// the test will fail.
 /// The score is a float between 0 and 1.
 /// If the images are the exact same, the score will be 1.
-/// This compartes the H.264 frame to a PNG. This is because then the diff will be easily visible
+/// This compares the H.264 frame to a PNG. This is because then the diff will be easily visible
 /// in a UI like GitHub's.
 #[track_caller]
 pub fn assert_h264_frame<P: AsRef<std::path::Path>>(path: P, actual: &[u8], threshold: f64) {
@@ -126,8 +126,6 @@ pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
 
     // Convert the decoded frame to an RGB format
     video_frame.set_format(ffmpeg::format::Pixel::RGB24);
-
-    // Save the image to disk.
 
     // Create an image from the RGB frame
     let Some(raw) = image::RgbImage::from_raw(video_frame.width(), video_frame.height(), video_frame.data(0).to_vec()) else {
