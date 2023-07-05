@@ -41,7 +41,6 @@ use std::io::Write;
 extern crate ffmpeg_next as ffmpeg;
 
 use anyhow::Result;
-use ffmpeg::codec::traits::Decoder;
 
 const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
@@ -87,14 +86,13 @@ pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
 
     // Save the frame to a temporary file, we can read back out of.
     // This will automatically be deleted when the program exits.
+    // TODO: this sucks we have to write this back out to disk, we should find a better way
+    // to create a decoder from just bytes.
     let temp_file_name = std::env::temp_dir().join(format!("{}.h264", uuid::Uuid::new_v4()));
     let mut temp_file = std::fs::File::create(&temp_file_name)?;
     temp_file.write_all(data)?;
 
     // Create a decoder for the H.264 format
-    let Some(codec) = ffmpeg_next::codec::decoder::find(ffmpeg::codec::id::Id::H264) else {
-        anyhow::bail!("could not find H.264 codec");
-    };
     let ictx = ffmpeg::format::input(&temp_file_name).map_err(|e| anyhow::anyhow!(e))?;
     let input = ictx
         .streams()
@@ -102,10 +100,6 @@ pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
         .ok_or(ffmpeg::Error::StreamNotFound)?;
     let context = ffmpeg::codec::context::Context::from_parameters(input.parameters())?;
     let mut video_decoder = context.decoder().video()?;
-    /* let Some(codec_decoder) = codec.decoder() else{
-        anyhow::bail!("could not create H.264 decoder");
-    };
-    let mut video_decoder = codec_decoder.video()?;*/
 
     // Read the H.264 frame
     let mut video_frame = ffmpeg::frame::Video::empty();
@@ -116,15 +110,29 @@ pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
     video_decoder.receive_frame(&mut video_frame)?;
     video_decoder.flush();
 
+    // Get the pixel format of the decoded frame
+    let pixel_format = video_frame.format();
+    println!("pixel format: {:?}", pixel_format);
+    if pixel_format != ffmpeg::format::Pixel::RGB24 {
+        let mut converted_video = ffmpeg::frame::Video::empty();
+        // Convert the decoded frame to an RGB format.
+        video_frame
+            .converter(ffmpeg::format::Pixel::RGB24)?
+            .run(&video_frame, &mut converted_video)?;
+        video_frame = converted_video;
+    }
+
     // Convert the decoded frame to an RGB format
     video_frame.set_format(ffmpeg::format::Pixel::RGB24);
 
+    // Save the image to disk.
+
     // Create an image from the RGB frame
-    let Some(raw) = image::RgbaImage::from_raw(video_frame.width(), video_frame.height(), video_frame.data(0).to_vec()) else {
+    let Some(raw) = image::RgbImage::from_raw(video_frame.width(), video_frame.height(), video_frame.data(0).to_vec()) else {
         anyhow::bail!("could not parse image from raw");
     };
 
-    Ok(image::DynamicImage::ImageRgba8(raw))
+    Ok(image::DynamicImage::ImageRgb8(raw))
 }
 
 pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
