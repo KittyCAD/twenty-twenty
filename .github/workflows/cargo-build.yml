@@ -43,6 +43,7 @@ jobs:
             libavformat-dev \
             libavutil-dev \
             libclang-dev \
+            libswscale-dev \
             --no-install-recommends
 
       - name: Run cargo build
