@@ -31,3 +31,13 @@ fn bad_h264() {
     let actual = std::fs::read("tests/multiple-frames.h264").unwrap();
     assert_h264_frame("tests/initial-grid.png", &actual, 0.999);
 }
+
+#[test]
+#[should_panic]
+fn bad_h264_png_compare() {
+    let actual = image::io::Reader::open("tests/multiple-frames.png")
+        .unwrap()
+        .decode()
+        .unwrap();
+    assert_image("tests/initial-grid.png", &actual, 1.0);
+}
