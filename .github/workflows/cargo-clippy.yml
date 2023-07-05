@@ -38,7 +38,14 @@ jobs:
       - name: Install ffmpeg
         run: |
           sudo apt update
-          sudo apt install ffmpeg
+          sudo apt install \
+            ffmpeg \
+            libavdevice-dev \
+            libavformat-dev \
+            libavfilter-dev \
+            libavutil-dev \
+            libclang-dev \
+            --no-install-recommends
 
       - name: Check workflow permissions
         id: check_permissions

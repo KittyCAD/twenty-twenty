@@ -20,6 +20,18 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.5.1
 
+      - name: Install ffmpeg
+        run: |
+          sudo apt update
+          sudo apt install \
+            ffmpeg \
+            libavdevice-dev \
+            libavformat-dev \
+            libavfilter-dev \
+            libavutil-dev \
+            libclang-dev \
+            --no-install-recommends
+
       - name: cargo test
         shell: bash
         run: |
