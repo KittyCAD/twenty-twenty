@@ -12,6 +12,9 @@ The underlying algorithm is SSIM, which is a perceptual metric that quantifies t
 quality degradation that is caused by processing such as data compression or by losses in data
 transmission. More information can be found [here](https://en.wikipedia.org/wiki/Structural_similarity).
 
+You will need `ffmpeg` installed on your system to use this library. This library uses
+the [ffmpeg bindings](https://docs.rs/ffmpeg-next/latest/ffmpeg_next/) in rust to convert the H.264 frames to images.
+
 Use it like this for an H.264 frame:
 
 ```rust
