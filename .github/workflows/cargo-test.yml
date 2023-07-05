@@ -40,9 +40,6 @@ jobs:
           sudo apt update
           sudo apt install \
             ffmpeg \
-            libavdevice-dev \
-            libavformat-dev \
-            libavfilter-dev \
             libavutil-dev \
             libclang-dev \
             --no-install-recommends
