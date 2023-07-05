@@ -36,7 +36,12 @@
 
 #![deny(missing_docs)]
 
+use std::io::Write;
+
+extern crate ffmpeg_next as ffmpeg;
+
 use anyhow::Result;
+use ffmpeg::codec::traits::Decoder;
 
 const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
@@ -62,8 +67,8 @@ pub fn assert_image<P: AsRef<std::path::Path>>(path: P, actual: &image::DynamicI
 /// This compartes the H.264 frame to a PNG. This is because then the diff will be easily visible
 /// in a UI like GitHub's.
 #[track_caller]
-pub fn assert_h264_frame<P: AsRef<std::path::Path>>(path: P, width: u32, height: u32, actual: &[u8], threshold: f64) {
-    match h264_frame_to_image(width, height, actual) {
+pub fn assert_h264_frame<P: AsRef<std::path::Path>>(path: P, actual: &[u8], threshold: f64) {
+    match h264_frame_to_image(actual) {
         Ok(image) => {
             if let Err(e) = assert_image_impl(path, &image, threshold) {
                 panic!("assertion failed: {e}")
@@ -76,8 +81,46 @@ pub fn assert_h264_frame<P: AsRef<std::path::Path>>(path: P, width: u32, height:
 }
 
 // Convert a H264 frame to an image.
-pub(crate) fn h264_frame_to_image(width: u32, height: u32, data: &[u8]) -> Result<image::DynamicImage> {
-    let Some(raw) = image::RgbaImage::from_raw(width, height, data.to_vec()) else {
+pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
+    // Initialize the FFmpeg library
+    ffmpeg::init()?;
+
+    // Save the frame to a temporary file, we can read back out of.
+    // This will automatically be deleted when the program exits.
+    let temp_file_name = std::env::temp_dir().join(format!("{}.h264", uuid::Uuid::new_v4()));
+    let mut temp_file = std::fs::File::create(&temp_file_name)?;
+    temp_file.write_all(data)?;
+
+    // Create a decoder for the H.264 format
+    let Some(codec) = ffmpeg_next::codec::decoder::find(ffmpeg::codec::id::Id::H264) else {
+        anyhow::bail!("could not find H.264 codec");
+    };
+    let ictx = ffmpeg::format::input(&temp_file_name).map_err(|e| anyhow::anyhow!(e))?;
+    let input = ictx
+        .streams()
+        .best(ffmpeg::media::Type::Video)
+        .ok_or(ffmpeg::Error::StreamNotFound)?;
+    let context = ffmpeg::codec::context::Context::from_parameters(input.parameters())?;
+    let mut video_decoder = context.decoder().video()?;
+    /* let Some(codec_decoder) = codec.decoder() else{
+        anyhow::bail!("could not create H.264 decoder");
+    };
+    let mut video_decoder = codec_decoder.video()?;*/
+
+    // Read the H.264 frame
+    let mut video_frame = ffmpeg::frame::Video::empty();
+    let packet = ffmpeg::packet::Packet::copy(data);
+
+    // Decode the H.264 frame
+    video_decoder.send_packet(&packet)?;
+    video_decoder.receive_frame(&mut video_frame)?;
+    video_decoder.flush();
+
+    // Convert the decoded frame to an RGB format
+    video_frame.set_format(ffmpeg::format::Pixel::RGB24);
+
+    // Create an image from the RGB frame
+    let Some(raw) = image::RgbaImage::from_raw(video_frame.width(), video_frame.height(), video_frame.data(0).to_vec()) else {
         anyhow::bail!("could not parse image from raw");
     };
 

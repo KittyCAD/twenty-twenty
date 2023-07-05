@@ -1,4 +1,4 @@
-use twenty_twenty::assert_image;
+use twenty_twenty::{assert_h264_frame, assert_image};
 
 #[test]
 fn good() {
@@ -11,4 +11,10 @@ fn good() {
 fn bad() {
     let actual = image::io::Reader::open("tests/dog1.png").unwrap().decode().unwrap();
     assert_image("tests/dog2.png", &actual, 1.0);
+}
+
+#[test]
+fn good_h264() {
+    let actual = std::fs::read("tests/initial-grid.h264").unwrap();
+    assert_h264_frame("tests/initial-grid.png", &actual, 1.0);
 }
