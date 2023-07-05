@@ -1,8 +1,8 @@
 //! The `twenty-twenty` library allows for visual regression testing of H.264 frames and images.
-//! It makes it easy to update the contents when should be updated to match the new results.
+//! It makes it easy to update the contents when they should be updated to match the new results.
 //!
 //! Each function takes a score threshold, which is the lowest possible "score" you are willing for
-//! the image comparison to return. If the resulting score is less than than the threshold, the test
+//! the image comparison to return. If the resulting score is less than the threshold, the test
 //! will fail. The score must be a number between 0 and 1. If the images are the exact same, the
 //! score will be 1.
 //!
@@ -13,20 +13,18 @@
 //! Use it like this for an H.264 frame:
 //!
 //! ```no_run
-//! fn get_frame() -> (u32, u32, Vec<u8>) {
-//!     (0, 0, vec![])
-//! }
-//!
+//! # fn get_frame() -> (u32, u32, Vec<u8>) {
+//! #     (0, 0, vec![])
+//! # }
 //! let (width, height, actual) = get_frame();
 //! twenty_twenty::assert_h264_frame("frame_image.png", width, height, &actual, 0.9);
 //! ```
 //! Use it like this for an image:
 //!
 //! ```no_run
-//! fn get_image() -> image::DynamicImage {
-//!    todo!()
-//! }
-//!
+//! # fn get_image() -> image::DynamicImage {
+//! #    todo!()
+//! # }
 //! let actual = get_image();
 //! twenty_twenty::assert_image("og_image.png", &actual, 0.9);
 //! ```
@@ -44,7 +42,7 @@ const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
 /// Compare the contents of the file to the image provided.
 /// The threshold is the lowest possible "score" you are willing for the image
-/// comparison to return. If the resulting score is less than than the threshold,
+/// comparison to return. If the resulting score is less than the threshold,
 /// the test will fail.
 /// The score is a float between 0 and 1.
 /// If the images are the exact same, the score will be 1.
@@ -57,10 +55,12 @@ pub fn assert_image<P: AsRef<std::path::Path>>(path: P, actual: &image::DynamicI
 
 /// Compare the contents of the file to the H.264 frame provided.
 /// The threshold is the lowest possible "score" you are willing for the image
-/// comparison to return. If the resulting score is less than than the threshold,
+/// comparison to return. If the resulting score is less than the threshold,
 /// the test will fail.
 /// The score is a float between 0 and 1.
 /// If the images are the exact same, the score will be 1.
+/// This compartes the H.264 frame to a PNG. This is because then the diff will be easily visible
+/// in a UI like GitHub's.
 #[track_caller]
 pub fn assert_h264_frame<P: AsRef<std::path::Path>>(path: P, width: u32, height: u32, actual: &[u8], threshold: f64) {
     match h264_frame_to_image(width, height, actual) {
@@ -120,7 +120,7 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
         // have different thresholds.
         if result.score < threshold {
             return Err(format!(
-                r#"image (`{}`) score is `{}` which is less than than threshold `{}`
+                r#"image (`{}`) score is `{}` which is less than threshold `{}`
                 set {}=overwrite if these changes are intentional"#,
                 path.display(),
                 result.score,
