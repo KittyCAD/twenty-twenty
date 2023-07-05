@@ -1,8 +1,8 @@
 //! The `twenty-twenty` library allows for visual regression testing of H.264 frames and images.
 //! It makes it easy to update the contents when they should be updated to match the new results.
 //!
-//! Each function takes a score threshold, which is the lowest possible "score" you are willing for
-//! the image comparison to return. If the resulting score is less than the threshold, the test
+//! Each function takes a minimum permissible similarity, which is the lowest possible "score" you are willing for
+//! the image comparison to return. If the resulting score is less than the minimum, the test
 //! will fail. The score must be a number between 0 and 1. If the images are the exact same, the
 //! score will be 1.
 //!
@@ -47,31 +47,30 @@ use ffmpeg_next as ffmpeg;
 const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
 /// Compare the contents of the file to the image provided.
-/// The threshold is the lowest possible "score" you are willing for the image
-/// comparison to return. If the resulting score is less than the threshold,
+/// If the two are less similar than the `min_permissible_similarity` threshold,
 /// the test will fail.
+/// The `min_permissible_similarity` is a float between 0 and 1.
 /// The score is a float between 0 and 1.
 /// If the images are the exact same, the score will be 1.
 #[track_caller]
-pub fn assert_image<P: AsRef<std::path::Path>>(path: P, actual: &image::DynamicImage, threshold: f64) {
-    if let Err(e) = assert_image_impl(path, actual, threshold) {
+pub fn assert_image<P: AsRef<std::path::Path>>(path: P, actual: &image::DynamicImage, min_permissible_similarity: f64) {
+    if let Err(e) = assert_image_impl(path, actual, min_permissible_similarity) {
         panic!("assertion failed: {e}")
     }
 }
 
 /// Compare the contents of the file to the H.264 frame provided.
-/// The threshold is the lowest possible "score" you are willing for the image
-/// comparison to return. If the resulting score is less than the threshold,
+/// If the two are less similar than the `min_permissible_similarity` threshold,
 /// the test will fail.
-/// The score is a float between 0 and 1.
+/// The `min_permissible_similarity` is a float between 0 and 1.
 /// If the images are the exact same, the score will be 1.
 /// This compares the H.264 frame to a PNG. This is because then the diff will be easily visible
 /// in a UI like GitHub's.
 #[track_caller]
-pub fn assert_h264_frame<P: AsRef<std::path::Path>>(path: P, actual: &[u8], threshold: f64) {
+pub fn assert_h264_frame<P: AsRef<std::path::Path>>(path: P, actual: &[u8], min_permissible_similarity: f64) {
     match h264_frame_to_image(actual) {
         Ok(image) => {
-            if let Err(e) = assert_image_impl(path, &image, threshold) {
+            if let Err(e) = assert_image_impl(path, &image, min_permissible_similarity) {
                 panic!("assertion failed: {e}")
             }
         }
@@ -137,7 +136,7 @@ pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
 pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
     path: P,
     actual: &image::DynamicImage,
-    threshold: f64,
+    min_permissible_similarity: f64,
 ) -> Result<(), String> {
     let path = path.as_ref();
     let var = std::env::var_os(CRATE_ENV_VAR);
@@ -147,37 +146,38 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
         if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
             panic!("unable to write image to {}: {}", path.display(), e);
         }
-    } else {
-        // Treat a nonexistent file like an empty image.
-        let expected = match image::io::Reader::open(path) {
-            Ok(s) => s.decode().expect("decoding image from path failed"),
-            Err(e) => match e.kind() {
-                // We take the dimensions from the original image.
-                std::io::ErrorKind::NotFound => image::DynamicImage::new_rgba16(actual.width(), actual.height()),
-                _ => panic!("unable to read contents of {}: {}", path.display(), e),
-            },
-        };
+        return Ok(());
+    }
 
-        // Compare the two images.
-        let result = match image_compare::rgba_hybrid_compare(&expected.to_rgba8(), &actual.to_rgba8()) {
-            Ok(result) => result,
-            Err(err) => {
-                panic!("could not compare the images {err}")
-            }
-        };
+    // Treat a nonexistent file like an empty image.
+    let expected = match image::io::Reader::open(path) {
+        Ok(s) => s.decode().expect("decoding image from path failed"),
+        Err(e) => match e.kind() {
+            // We take the dimensions from the original image.
+            std::io::ErrorKind::NotFound => image::DynamicImage::new_rgba16(actual.width(), actual.height()),
+            _ => panic!("unable to read contents of {}: {}", path.display(), e),
+        },
+    };
 
-        // The SSIM score should be near 0, this is tweakable from the consumer, since they likely
-        // have different thresholds.
-        if result.score < threshold {
-            return Err(format!(
-                r#"image (`{}`) score is `{}` which is less than threshold `{}`
-                set {}=overwrite if these changes are intentional"#,
-                path.display(),
-                result.score,
-                threshold,
-                CRATE_ENV_VAR
-            ));
+    // Compare the two images.
+    let result = match image_compare::rgba_hybrid_compare(&expected.to_rgba8(), &actual.to_rgba8()) {
+        Ok(result) => result,
+        Err(err) => {
+            panic!("could not compare the images {err}")
         }
+    };
+
+    // The SSIM score should be near 0, this is tweakable from the consumer, since they likely
+    // have different thresholds.
+    if result.score < min_permissible_similarity {
+        anyhow::bail!(
+            r#"image (`{}`) score is `{}` which is less than min_permissible_similarity `{}`
+                set {}=overwrite if these changes are intentional"#,
+            path.display(),
+            result.score,
+            min_permissible_similarity,
+            CRATE_ENV_VAR
+        )
     }
 
     Ok(())
