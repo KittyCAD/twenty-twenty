@@ -35,6 +35,11 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.5.1
 
+      - name: Install ffmpeg
+        run: |
+          sudo apt update
+          sudo apt install ffmpeg
+
       - name: Run cargo build
         run: |
           cargo build --all

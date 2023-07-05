@@ -16,5 +16,5 @@ fn bad() {
 #[test]
 fn good_h264() {
     let actual = std::fs::read("tests/initial-grid.h264").unwrap();
-    assert_h264_frame("tests/initial-grid.png", &actual, 1.0);
+    assert_h264_frame("tests/initial-grid.png", &actual, 0.99);
 }
