@@ -18,20 +18,20 @@ the [ffmpeg bindings](https://docs.rs/ffmpeg-next/latest/ffmpeg_next/) in rust t
 Use it like this for an H.264 frame:
 
 ```rust
-let (width, height, actual) = get_frame();
-twenty_twenty::assert_h264_frame("frame_image.png", width, height, &actual, 0.9);
+let actual = get_h264_frame();
+twenty_twenty::assert_h264_frame("tests/initial-grid.png", &actual, 0.9);
 ```
 Use it like this for an image:
 
 ```rust
 let actual = get_image();
-twenty_twenty::assert_image("og_image.png", &actual, 0.9);
+twenty_twenty::assert_image("tests/dog1.png", &actual, 0.9);
 ```
 
 If the output doesn't match, the program will `panic!` and emit the
 difference in the score.
 
-To accept the changes from `get_frame()` or `get_image()`, run with `TWENTY_TWENTY=overwrite`.
+To accept the changes from `get_h264_frame()` or `get_image()`, run with `TWENTY_TWENTY=overwrite`.
 
 ## Publishing a new release
 
