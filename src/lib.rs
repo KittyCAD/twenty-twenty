@@ -115,7 +115,6 @@ pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
 
     // Get the pixel format of the decoded frame
     let pixel_format = video_frame.format();
-    println!("pixel format: {:?}", pixel_format);
     if pixel_format != ffmpeg::format::Pixel::RGB24 {
         let mut converted_video = ffmpeg::frame::Video::empty();
         // Convert the decoded frame to an RGB format.
