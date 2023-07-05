@@ -41,9 +41,8 @@
 
 use std::io::Write;
 
-extern crate ffmpeg_next as ffmpeg;
-
 use anyhow::Result;
+use ffmpeg_next as ffmpeg;
 
 const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
