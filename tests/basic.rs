@@ -16,11 +16,18 @@ fn bad() {
 #[test]
 fn good_h264() {
     let actual = std::fs::read("tests/initial-grid.h264").unwrap();
-    assert_h264_frame("tests/initial-grid.png", &actual, 0.99);
+    assert_h264_frame("tests/initial-grid.png", &actual, 0.999);
 }
 
 #[test]
 fn good_h264_multiple_frames() {
     let actual = std::fs::read("tests/multiple-frames.h264").unwrap();
-    assert_h264_frame("tests/multiple-frames.png", &actual, 0.99);
+    assert_h264_frame("tests/multiple-frames.png", &actual, 0.999);
+}
+
+#[test]
+#[should_panic]
+fn bad_h264() {
+    let actual = std::fs::read("tests/multiple-frames.h264").unwrap();
+    assert_h264_frame("tests/initial-grid.png", &actual, 0.999);
 }

@@ -129,7 +129,7 @@ pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
 
     // Create an image from the RGB frame
     let Some(raw) = image::RgbImage::from_raw(video_frame.width(), video_frame.height(), video_frame.data(0).to_vec()) else {
-        anyhow::bail!("could not parse image from raw");
+        anyhow::bail!("the container was not big enough as per: https://docs.rs/image/latest/image/struct.ImageBuffer.html#method.from_raw");
     };
 
     Ok(image::DynamicImage::ImageRgb8(raw))
