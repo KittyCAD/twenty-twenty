@@ -14,7 +14,7 @@ on:
       - '**.rs'
       - Cargo.toml
       - Cargo.lock
-      - .github/workflows/cargo-build.yml
+      - .github/workflows/cargo-clippy.yml
       - 'rust-toolchain'
       - 'rust-toolchain.toml'
 name: cargo clippy
@@ -61,4 +61,4 @@ jobs:
           args: --all
       - name: Run clippy manually without annotations
         if: ${{ !steps.check_permissions.outputs.has-permission }}
-        run: cargo clippy --all --tests -- -D warnings
+        run: cargo clippy --all --all-features -- -D warnings
