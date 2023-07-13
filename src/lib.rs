@@ -137,7 +137,7 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
     path: P,
     actual: &image::DynamicImage,
     min_permissible_similarity: f64,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let path = path.as_ref();
     let var = std::env::var_os(CRATE_ENV_VAR);
     let overwrite = var.as_deref().and_then(std::ffi::OsStr::to_str) == Some("overwrite");
