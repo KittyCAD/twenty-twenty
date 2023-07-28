@@ -46,16 +46,16 @@ use ffmpeg_next as ffmpeg;
 
 const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
-/// The different modes available for the TWENTY_TWENTY environment variable
+/// The different modes available for the TWENTY_TWENTY environment variable.
 #[derive(PartialEq)]
 enum Mode {
     /// Overwrite the file we are comparing against, i.e. accept the changes of the diff.
     Overwrite,
-    /// Store the files on disk when they don't match (for now make all paths relative to `artifacts/`)
+    /// Store the files on disk when they don't match (for now make all paths relative to `artifacts/`).
     StoreArtifactOnMismatch,
-    /// Store the files on disk always (for now make all paths relative to `artifacts/`)
+    /// Store the files on disk always (for now make all paths relative to `artifacts/`).
     StoreArtifact,
-    /// Don't do anything
+    /// Only assert the image diff is within the given threshold.
     Default,
 }
 
