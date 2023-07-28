@@ -46,6 +46,19 @@ use ffmpeg_next as ffmpeg;
 
 const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
+/// The different modes available for the TWENTY_TWENTY environment variable
+#[derive(PartialEq)]
+enum Mode {
+    /// Overwrite the file we are comparing against, i.e. accept the changes of the diff.
+    Overwrite,
+    /// Store the files on disk when they don't match (for now make all paths relative to `artifacts/`)
+    StoreArtifactOnMismatch,
+    /// Store the files on disk always (for now make all paths relative to `artifacts/`)
+    StoreArtifact,
+    /// Don't do anything
+    Default,
+}
+
 /// Compare the contents of the file to the image provided.
 /// If the two are less similar than the `min_permissible_similarity` threshold,
 /// the test will fail.
@@ -140,9 +153,14 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
 ) -> anyhow::Result<()> {
     let path = path.as_ref();
     let var = std::env::var_os(CRATE_ENV_VAR);
-    let overwrite = var.as_deref().and_then(std::ffi::OsStr::to_str) == Some("overwrite");
+    let mode = match var.as_deref().and_then(std::ffi::OsStr::to_str) {
+        Some("overwrite") => Mode::Overwrite,
+        Some("store-artifact") => Mode::StoreArtifact,
+        Some("store-artifact-on-mismatch") => Mode::StoreArtifactOnMismatch,
+        _ => Mode::Default,
+    };
 
-    if overwrite {
+    if mode == Mode::Overwrite {
         if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
             panic!("unable to write image to {}: {}", path.display(), e);
         }
@@ -169,7 +187,19 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
 
     // The SSIM score should be near 0, this is tweakable from the consumer, since they likely
     // have different thresholds.
-    if result.score < min_permissible_similarity {
+    let image_mismatch = result.score < min_permissible_similarity;
+
+    if mode == Mode::StoreArtifact || (mode == Mode::StoreArtifactOnMismatch && image_mismatch) {
+        let artifact_path = std::path::Path::new("artifacts/").join(path);
+        if let Some(parent) = artifact_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        if let Err(e) = actual.save_with_format(artifact_path, image::ImageFormat::Png) {
+            panic!("unable to write image to {}: {}", path.display(), e);
+        }
+    }
+
+    if image_mismatch {
         anyhow::bail!(
             r#"image (`{}`) score is `{}` which is less than min_permissible_similarity `{}`
                 set {}=overwrite if these changes are intentional"#,
