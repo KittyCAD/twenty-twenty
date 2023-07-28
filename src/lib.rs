@@ -47,9 +47,10 @@ use ffmpeg_next as ffmpeg;
 const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
 /// The different modes available for the TWENTY_TWENTY environment variable.
-#[derive(PartialEq)]
+#[derive(Default, PartialEq)]
 enum Mode {
     /// Only assert the image diff is within the given threshold.
+    #[default]
     Default,
     /// Overwrite the file we are comparing against, i.e. accept the changes of the diff.
     Overwrite,
@@ -211,4 +212,50 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::assert_image;
+
+    #[test]
+    fn test_overwrite_mode() {
+        std::fs::create_dir_all("tests/tmp").unwrap();
+        std::fs::copy("tests/dog1.png", "tests/tmp/initial-grid.png").unwrap();
+        let expected_image = image::io::Reader::open("tests/initial-grid.png")
+            .unwrap()
+            .decode()
+            .unwrap();
+        std::env::set_var("TWENTY_TWENTY", "overwrite");
+        assert_image("tests/tmp/initial-grid.png", &expected_image, 1.0);
+        std::env::set_var("TWENTY_TWENTY", "");
+        assert_image("tests/tmp/initial-grid.png", &expected_image, 1.0);
+    }
+
+    #[test]
+    fn test_store_artifact_mode() {
+        let expected_image = image::io::Reader::open("tests/initial-grid.png")
+            .unwrap()
+            .decode()
+            .unwrap();
+        std::env::set_var("TWENTY_TWENTY", "store-artifact");
+        assert_image("tests/initial-grid.png", &expected_image, 1.0);
+        std::env::set_var("TWENTY_TWENTY", "");
+        assert_image("artifacts/tests/initial-grid.png", &expected_image, 1.0);
+    }
+
+    #[test]
+    fn test_store_artifact_if_mismatch_mode() {
+        let expected_image = image::io::Reader::open("tests/initial-grid.png")
+            .unwrap()
+            .decode()
+            .unwrap();
+        std::env::set_var("TWENTY_TWENTY", "store-artifact-on-mismatch");
+        // We expect the panic, so we just catch and continue on.
+        let _result = std::panic::catch_unwind(|| {
+            assert_image("tests/multiple-frames.png", &expected_image, 1.0);
+        });
+        std::env::set_var("TWENTY_TWENTY", "");
+        assert_image("artifacts/tests/multiple-frames.png", &expected_image, 1.0);
+    }
 }
