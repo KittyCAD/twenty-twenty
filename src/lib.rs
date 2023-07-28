@@ -49,14 +49,14 @@ const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 /// The different modes available for the TWENTY_TWENTY environment variable.
 #[derive(PartialEq)]
 enum Mode {
-    /// Overwrite the file we are comparing against, i.e. accept the changes of the diff.
-    Overwrite,
-    /// Store the files on disk when they don't match (for now make all paths relative to `artifacts/`).
-    StoreArtifactOnMismatch,
-    /// Store the files on disk always (for now make all paths relative to `artifacts/`).
-    StoreArtifact,
     /// Only assert the image diff is within the given threshold.
     Default,
+    /// Overwrite the file we are comparing against, i.e. accept the changes of the diff.
+    Overwrite,
+    /// Store the files on disk always (for now make all paths relative to `artifacts/`).
+    StoreArtifact,
+    /// Store the files on disk when they don't match (for now make all paths relative to `artifacts/`).
+    StoreArtifactOnMismatch,
 }
 
 /// Compare the contents of the file to the image provided.
