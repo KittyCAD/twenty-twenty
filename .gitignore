@@ -1,1 +1,4 @@
 /target
+artifacts
+.DS_Store
+tests/tmp
