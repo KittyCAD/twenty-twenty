@@ -60,6 +60,19 @@ enum Mode {
     StoreArtifactOnMismatch,
 }
 
+impl std::str::FromStr for Mode {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(match s {
+            "overwrite" => Mode::Overwrite,
+            "store-artifact" => Mode::StoreArtifact,
+            "store-artifact-on-mismatch" => Mode::StoreArtifactOnMismatch,
+            _ => Mode::Default,
+        })
+    }
+}
+
 /// Compare the contents of the file to the image provided.
 /// If the two are less similar than the `min_permissible_similarity` threshold,
 /// the test will fail.
@@ -154,12 +167,12 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
 ) -> anyhow::Result<()> {
     let path = path.as_ref();
     let var = std::env::var_os(CRATE_ENV_VAR);
-    let mode = match var.as_deref().and_then(std::ffi::OsStr::to_str) {
-        Some("overwrite") => Mode::Overwrite,
-        Some("store-artifact") => Mode::StoreArtifact,
-        Some("store-artifact-on-mismatch") => Mode::StoreArtifactOnMismatch,
-        _ => Mode::Default,
-    };
+    let mode: Mode = var
+        .as_deref()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or_default()
+        .parse()
+        .unwrap_or_default();
 
     if mode == Mode::Overwrite {
         if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
