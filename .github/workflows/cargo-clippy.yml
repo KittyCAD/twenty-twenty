@@ -61,4 +61,4 @@ jobs:
           args: --all
       - name: Run clippy manually without annotations
         if: ${{ !steps.check_permissions.outputs.has-permission }}
-        run: cargo clippy --all --all-features -- -D warnings
+        run: cargo clippy --workspace --examples --tests --benches --all-features -- -D warnings

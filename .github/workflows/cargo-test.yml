@@ -50,7 +50,7 @@ jobs:
       - name: cargo test
         shell: bash
         run: |
-          cargo llvm-cov nextest --all --lcov --output-path lcov.info --test-threads=1 --no-fail-fast
+          cargo llvm-cov nextest --workspace --all-features --lcov --output-path lcov.info --test-threads=1 --no-fail-fast
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
