@@ -364,9 +364,9 @@ dependencies = [
 
 [[package]]
 name = "image-compare"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "419d59423b7202f6a2a95d3b9cf11a8cc9bf83a29cf7dda4d617a90e8c5ccfcf"
+checksum = "c16b73efbb4b417b4e036cb6f0b0d31c43568a90ab575a4c7611c4396ec1a6b8"
 dependencies = [
  "image",
  "itertools",
