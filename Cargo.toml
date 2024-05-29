@@ -10,9 +10,9 @@ license = "MIT"
 
 [dependencies]
 anyhow = { version = "1.0.71", features = ["backtrace"] }
-ffmpeg-next = { version = "6.0.0", default-features = false, features = ["codec", "format", "software-scaling"], optional = true }
-image = "0.24.6"
-image-compare = "0.3.0"
+ffmpeg-next = { version = "7.0.2", default-features = false, features = ["codec", "format", "software-scaling"], optional = true }
+image = "0.25.1"
+image-compare = "0.4.1"
 uuid = { version = "1.4.0", features = ["v4"] }
 
 [features]
