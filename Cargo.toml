@@ -2,7 +2,7 @@
 name = "twenty-twenty"
 description = "Visual regression testing of H264 frames and images."
 repository = "https://github.com/kittycad/twenty-twenty"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 license = "MIT"
 
@@ -11,7 +11,7 @@ license = "MIT"
 [dependencies]
 anyhow = { version = "1.0.71", features = ["backtrace"] }
 ffmpeg-next = { version = "7.0.2", default-features = false, features = ["codec", "format", "software-scaling"], optional = true }
-image = "0.25.1"
+image = { version = "0.25.1", default-features = false, features = ["png"] }
 image-compare = "0.4.1"
 uuid = { version = "1.4.0", features = ["v4"] }
 
