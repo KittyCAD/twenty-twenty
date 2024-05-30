@@ -86,12 +86,45 @@ pub fn assert_image<P: AsRef<std::path::Path>>(path: P, actual: &image::DynamicI
     }
 }
 
+/// Image formats that 20-20 snapshots support.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
+pub enum ImgFormat {
+    /// PNG
+    #[default]
+    Png,
+    /// JPEG
+    Jpeg,
+}
+
+impl From<ImgFormat> for image::ImageFormat {
+    fn from(value: ImgFormat) -> Self {
+        match value {
+            ImgFormat::Png => Self::Png,
+            ImgFormat::Jpeg => Self::Jpeg,
+        }
+    }
+}
+
+impl ImgFormat {
+    /// Panics if the file extension cannot be associated with a valid ImgFormat.
+    fn from_path_suffix(p: &str) -> Self {
+        if p.ends_with("png") {
+            Self::Png
+        } else if p.ends_with("jpg") || p.ends_with("jpeg") {
+            Self::Jpeg
+        } else {
+            panic!("twenty-twenty snapshots support either PNG or JPEG, and infers the filetype from the path's file extension. Your file {p} uses an invalid file extension.")
+        }
+    }
+}
+
 pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
     path: P,
     actual: &image::DynamicImage,
     min_permissible_similarity: f64,
 ) -> anyhow::Result<()> {
     let path = path.as_ref();
+    let fmt = ImgFormat::from_path_suffix(&path.display().to_string());
     let var = std::env::var_os(CRATE_ENV_VAR);
     let mode: Mode = var
         .as_deref()
@@ -101,7 +134,7 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
         .unwrap_or_default();
 
     if mode == Mode::Overwrite {
-        if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
+        if let Err(e) = actual.save_with_format(path, fmt.into()) {
             panic!("unable to write image to {}: {}", path.display(), e);
         }
         return Ok(());
@@ -134,7 +167,7 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
         if let Some(parent) = artifact_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        if let Err(e) = actual.save_with_format(artifact_path, image::ImageFormat::Png) {
+        if let Err(e) = actual.save_with_format(artifact_path, fmt.into()) {
             panic!("unable to write image to {}: {}", path.display(), e);
         }
     }
