@@ -206,14 +206,14 @@ mod tests {
 
     #[test]
     fn test_store_artifact_mode() {
-        let expected_image = image::io::Reader::open("tests/initial-grid.png")
+        let expected_image = image::io::Reader::open("tests/initial-grid.jpg")
             .unwrap()
             .decode()
             .unwrap();
         std::env::set_var("TWENTY_TWENTY", "store-artifact");
-        assert_image("tests/initial-grid.png", &expected_image, 1.0);
+        assert_image("tests/initial-grid.jpg", &expected_image, 1.0);
         std::env::set_var("TWENTY_TWENTY", "");
-        assert_image("artifacts/tests/initial-grid.png", &expected_image, 1.0);
+        assert_image("artifacts/tests/initial-grid.jpg", &expected_image, 1.0);
     }
 
     #[test]
