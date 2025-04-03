@@ -29,7 +29,7 @@ jobs:
           components: rustfmt
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.6.2
+        uses: Swatinem/rust-cache@v2.7.8
 
       - name: Run cargo fmt
         run: |
