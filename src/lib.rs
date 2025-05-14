@@ -171,7 +171,9 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
     if mode == Mode::StoreArtifact || (mode == Mode::StoreArtifactOnMismatch && image_mismatch) {
         let artifact_path = std::path::Path::new("artifacts/").join(path);
         if let Some(parent) = artifact_path.parent() {
-            std::fs::create_dir_all(parent)?;
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                panic!("unable to create directory {}: {e}", parent.display());
+            }
         }
         if let Err(e) = actual.save_with_format(artifact_path, image::ImageFormat::Png) {
             panic!("unable to write image to {}: {}", path.display(), e);
