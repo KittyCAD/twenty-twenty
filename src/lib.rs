@@ -93,7 +93,7 @@ enum Mode {
     /// Overwrite the file we are comparing against, i.e. accept the changes of the diff.
     Overwrite,
     /// Overwrite the file if they don't match, but leave it alone if they do.
-    Update,
+    UpdateOnMismatch,
     /// Store the files on disk always (for now make all paths relative to `artifacts/`).
     StoreArtifact,
     /// Store the files on disk when they don't match (for now make all paths relative to `artifacts/`).
@@ -106,7 +106,7 @@ impl std::str::FromStr for Mode {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         Ok(match s {
             "overwrite" => Mode::Overwrite,
-            "update" => Mode::Update,
+            "update" => Mode::UpdateOnMismatch,
             "store-artifact" => Mode::StoreArtifact,
             "store-artifact-on-mismatch" => Mode::StoreArtifactOnMismatch,
             _ => Mode::Default,
@@ -184,7 +184,7 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
     }
 
     if image_mismatch {
-        if mode == Mode::Update {
+        if mode == Mode::UpdateOnMismatch {
             if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
                 panic!("unable to write image to {}: {}", path.display(), e);
             }
