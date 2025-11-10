@@ -9,9 +9,9 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = { version = "1.0.71", features = ["backtrace"] }
+anyhow = { version = "1.0.100", features = ["backtrace"] }
 ffmpeg-next = { version = "7.0.2", default-features = false, features = ["codec", "format", "software-scaling"], optional = true }
-image = { version = "0.25.1", default-features = false, features = ["png"] }
+image = { version = "0.25.8", default-features = false, features = ["png"] }
 image-compare = "0.4.1"
 uuid = { version = "1.4.0", features = ["v4"] }
 
