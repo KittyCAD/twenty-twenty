@@ -45,7 +45,7 @@
 //!
 //! 1. Write a test, for example:
 //!
-//!   ```
+//!   ```no_run
 //!   // tests/twenty_twenty.rs
 //!   #[test]
 //!   fn example_test() {
