@@ -1,3 +1,7 @@
+# 0.8.4
+
+- Add non-panicking image assertion API
+
 # 0.8.3
 
 - Add a new 'Update' mode
