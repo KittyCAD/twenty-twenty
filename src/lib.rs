@@ -115,6 +115,102 @@ impl std::str::FromStr for Mode {
     }
 }
 
+/// An error returned when an image assertion cannot be completed successfully.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum AssertImageError {
+    /// The expected image could not be read.
+    #[non_exhaustive]
+    ReadImage {
+        /// The path to the expected image.
+        path: std::path::PathBuf,
+        /// The underlying I/O error.
+        source: std::io::Error,
+    },
+    /// The expected image could not be decoded.
+    #[non_exhaustive]
+    DecodeImage {
+        /// The path to the expected image.
+        path: std::path::PathBuf,
+        /// The underlying image error.
+        source: image::ImageError,
+    },
+    /// The expected and actual images could not be compared.
+    #[non_exhaustive]
+    CompareImages {
+        /// The underlying comparison error.
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+    /// A directory needed for an output image could not be created.
+    #[non_exhaustive]
+    CreateDirectory {
+        /// The directory that could not be created.
+        path: std::path::PathBuf,
+        /// The underlying I/O error.
+        source: std::io::Error,
+    },
+    /// An output image could not be written.
+    #[non_exhaustive]
+    WriteImage {
+        /// The path to the output image.
+        path: std::path::PathBuf,
+        /// The underlying image error.
+        source: image::ImageError,
+    },
+    /// The image similarity score was below the required threshold.
+    #[non_exhaustive]
+    ImageMismatch {
+        /// The path to the expected image.
+        path: std::path::PathBuf,
+        /// The measured image similarity score.
+        score: f64,
+        /// The minimum permissible image similarity score.
+        min_permissible_similarity: f64,
+    },
+}
+
+impl std::fmt::Display for AssertImageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ReadImage { path, source } => {
+                write!(f, "unable to read contents of {}: {source}", path.display())
+            }
+            Self::DecodeImage { source, .. } => write!(f, "decoding image from path failed: {source:?}"),
+            Self::CompareImages { source } => write!(f, "could not compare the images {source}"),
+            Self::CreateDirectory { path, source } => {
+                write!(f, "unable to create directory {}: {source}", path.display())
+            }
+            Self::WriteImage { path, source } => {
+                write!(f, "unable to write image to {}: {source}", path.display())
+            }
+            Self::ImageMismatch {
+                path,
+                score,
+                min_permissible_similarity,
+            } => write!(
+                f,
+                r#"image (`{}`) score is `{}` which is less than min_permissible_similarity `{}`
+                set {}=overwrite if these changes are intentional"#,
+                path.display(),
+                score,
+                min_permissible_similarity,
+                CRATE_ENV_VAR
+            ),
+        }
+    }
+}
+
+impl std::error::Error for AssertImageError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ReadImage { source, .. } | Self::CreateDirectory { source, .. } => Some(source),
+            Self::DecodeImage { source, .. } | Self::WriteImage { source, .. } => Some(source),
+            Self::CompareImages { source } => Some(source.as_ref()),
+            Self::ImageMismatch { .. } => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 enum OperationalFailure {
     Panic,
@@ -123,9 +219,21 @@ enum OperationalFailure {
 
 impl OperationalFailure {
     #[track_caller]
-    fn handle<T>(self, error: anyhow::Error) -> anyhow::Result<T> {
+    fn handle<T>(self, error: AssertImageError) -> Result<T, AssertImageError> {
         match self {
             Self::Panic => panic!("{error}"),
+            Self::Return => Err(error),
+        }
+    }
+
+    #[track_caller]
+    fn handle_with_panic_message<T>(
+        self,
+        error: AssertImageError,
+        panic_message: String,
+    ) -> Result<T, AssertImageError> {
+        match self {
+            Self::Panic => panic!("{panic_message}"),
             Self::Return => Err(error),
         }
     }
@@ -158,7 +266,7 @@ pub fn try_assert_image<P: AsRef<std::path::Path>>(
     path: P,
     actual: &image::DynamicImage,
     min_permissible_similarity: f64,
-) -> anyhow::Result<()> {
+) -> Result<(), AssertImageError> {
     assert_image_impl(path, actual, min_permissible_similarity, OperationalFailure::Return)
 }
 
@@ -167,7 +275,7 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
     actual: &image::DynamicImage,
     min_permissible_similarity: f64,
     operational_failure: OperationalFailure,
-) -> anyhow::Result<()> {
+) -> Result<(), AssertImageError> {
     let path = path.as_ref();
     let var = std::env::var_os(CRATE_ENV_VAR);
     let mode: Mode = var
@@ -179,7 +287,10 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
 
     if mode == Mode::Overwrite {
         if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
-            operational_failure.handle(anyhow::anyhow!("unable to write image to {}: {}", path.display(), e))?;
+            operational_failure.handle(AssertImageError::WriteImage {
+                path: path.to_path_buf(),
+                source: e,
+            })?;
         }
         return Ok(());
     }
@@ -188,19 +299,27 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
     let expected = match image::io::Reader::open(path) {
         Ok(s) => match s.decode() {
             Ok(image) => image,
-            Err(e) => operational_failure.handle(anyhow::anyhow!("decoding image from path failed: {e:?}"))?,
+            Err(e) => operational_failure.handle(AssertImageError::DecodeImage {
+                path: path.to_path_buf(),
+                source: e,
+            })?,
         },
         Err(e) => match e.kind() {
             // We take the dimensions from the original image.
             std::io::ErrorKind::NotFound => image::DynamicImage::new_rgba16(actual.width(), actual.height()),
-            _ => operational_failure.handle(anyhow::anyhow!("unable to read contents of {}: {}", path.display(), e))?,
+            _ => operational_failure.handle(AssertImageError::ReadImage {
+                path: path.to_path_buf(),
+                source: e,
+            })?,
         },
     };
 
     // Compare the two images.
     let result = match image_compare::rgba_hybrid_compare(&expected.to_rgba8(), &actual.to_rgba8()) {
         Ok(result) => result,
-        Err(err) => operational_failure.handle(anyhow::anyhow!("could not compare the images {err}"))?,
+        Err(source) => operational_failure.handle(AssertImageError::CompareImages {
+            source: Box::new(source),
+        })?,
     };
 
     // The SSIM score should be near 0, this is tweakable from the consumer, since they likely
@@ -211,29 +330,39 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
         let artifact_path = std::path::Path::new("artifacts/").join(path);
         if let Some(parent) = artifact_path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
-                operational_failure.handle(anyhow::anyhow!("unable to create directory {}: {e}", parent.display()))?;
+                operational_failure.handle(AssertImageError::CreateDirectory {
+                    path: parent.to_path_buf(),
+                    source: e,
+                })?;
             }
         }
-        if let Err(e) = actual.save_with_format(artifact_path, image::ImageFormat::Png) {
-            operational_failure.handle(anyhow::anyhow!("unable to write image to {}: {}", path.display(), e))?;
+        if let Err(source) = actual.save_with_format(&artifact_path, image::ImageFormat::Png) {
+            let panic_message = format!("unable to write image to {}: {source}", path.display());
+            operational_failure.handle_with_panic_message(
+                AssertImageError::WriteImage {
+                    path: artifact_path,
+                    source,
+                },
+                panic_message,
+            )?;
         }
     }
 
     if image_mismatch {
         if mode == Mode::UpdateOnMismatch {
             if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
-                operational_failure.handle(anyhow::anyhow!("unable to write image to {}: {}", path.display(), e))?;
+                operational_failure.handle(AssertImageError::WriteImage {
+                    path: path.to_path_buf(),
+                    source: e,
+                })?;
             }
             return Ok(());
         }
-        anyhow::bail!(
-            r#"image (`{}`) score is `{}` which is less than min_permissible_similarity `{}`
-                set {}=overwrite if these changes are intentional"#,
-            path.display(),
-            result.score,
+        return Err(AssertImageError::ImageMismatch {
+            path: path.to_path_buf(),
+            score: result.score,
             min_permissible_similarity,
-            CRATE_ENV_VAR
-        )
+        });
     }
 
     Ok(())
