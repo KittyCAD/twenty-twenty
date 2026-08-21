@@ -1,5 +1,6 @@
 # 0.8.4
 
+- Remove anyhow dependency
 - Add non-panicking image assertion API
 
 # 0.8.3
