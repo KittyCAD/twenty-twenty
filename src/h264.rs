@@ -1,6 +1,5 @@
 use std::io::Write;
 
-use anyhow::Result;
 use ffmpeg_next as ffmpeg;
 
 /// Compare the contents of the file to the H.264 frame provided.
@@ -21,7 +20,9 @@ pub fn assert_h264_frame<P: AsRef<std::path::Path>>(path: P, actual: &[u8], min_
 }
 
 // Convert a H264 frame to an image.
-pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
+pub(crate) fn h264_frame_to_image(
+    data: &[u8],
+) -> Result<image::DynamicImage, Box<dyn std::error::Error + Send + Sync>> {
     // Initialize the FFmpeg library
     ffmpeg::init()?;
 
@@ -34,7 +35,7 @@ pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
     temp_file.write_all(data)?;
 
     // Create a decoder for the H.264 format
-    let ictx = ffmpeg::format::input(&temp_file_name).map_err(|e| anyhow::anyhow!(e))?;
+    let ictx = ffmpeg::format::input(&temp_file_name)?;
     let input = ictx
         .streams()
         .best(ffmpeg::media::Type::Video)
@@ -68,7 +69,10 @@ pub(crate) fn h264_frame_to_image(data: &[u8]) -> Result<image::DynamicImage> {
     // Create an image from the RGB frame
     let Some(raw) = image::RgbImage::from_raw(video_frame.width(), video_frame.height(), video_frame.data(0).to_vec())
     else {
-        anyhow::bail!("the container was not big enough as per: https://docs.rs/image/latest/image/struct.ImageBuffer.html#method.from_raw");
+        return Err(
+            "the container was not big enough as per: https://docs.rs/image/latest/image/struct.ImageBuffer.html#method.from_raw"
+                .into(),
+        );
     };
 
     Ok(image::DynamicImage::ImageRgb8(raw))
