@@ -455,7 +455,7 @@ dependencies = [
 
 [[package]]
 name = "twenty-twenty"
-version = "0.8.3"
+version = "0.8.4"
 dependencies = [
  "ffmpeg-next",
  "image",
