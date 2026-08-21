@@ -211,34 +211,6 @@ impl std::error::Error for AssertImageError {
     }
 }
 
-#[derive(Clone, Copy)]
-enum OperationalFailure {
-    Panic,
-    Return,
-}
-
-impl OperationalFailure {
-    #[track_caller]
-    fn handle<T>(self, error: AssertImageError) -> Result<T, AssertImageError> {
-        match self {
-            Self::Panic => panic!("{error}"),
-            Self::Return => Err(error),
-        }
-    }
-
-    #[track_caller]
-    fn handle_with_panic_message<T>(
-        self,
-        error: AssertImageError,
-        panic_message: String,
-    ) -> Result<T, AssertImageError> {
-        match self {
-            Self::Panic => panic!("{panic_message}"),
-            Self::Return => Err(error),
-        }
-    }
-}
-
 /// Compare the contents of the file to the image provided.
 ///
 /// `min_permissible_similarity` is a floating point value between `0.0` and `1.0`. If the two compared images are less similar than the `min_permissible_similarity` threshold,
@@ -248,8 +220,23 @@ impl OperationalFailure {
 /// If the images are identical, the score will be `1.0`.
 #[track_caller]
 pub fn assert_image<P: AsRef<std::path::Path>>(path: P, actual: &image::DynamicImage, min_permissible_similarity: f64) {
-    if let Err(e) = assert_image_impl(path, actual, min_permissible_similarity, OperationalFailure::Panic) {
-        panic!("assertion failed: {e}")
+    let path = path.as_ref();
+    if let Err(error) = assert_image_impl(path, actual, min_permissible_similarity) {
+        panic_assert_image_error(path, error)
+    }
+}
+
+#[track_caller]
+fn panic_assert_image_error(path: &std::path::Path, error: AssertImageError) -> ! {
+    match error {
+        error @ AssertImageError::ImageMismatch { .. } => panic!("assertion failed: {error}"),
+        AssertImageError::WriteImage {
+            path: output_path,
+            source,
+        } if output_path == std::path::Path::new("artifacts").join(path) => {
+            panic!("unable to write image to {}: {source}", path.display())
+        }
+        error => panic!("{error}"),
     }
 }
 
@@ -267,14 +254,13 @@ pub fn try_assert_image<P: AsRef<std::path::Path>>(
     actual: &image::DynamicImage,
     min_permissible_similarity: f64,
 ) -> Result<(), AssertImageError> {
-    assert_image_impl(path, actual, min_permissible_similarity, OperationalFailure::Return)
+    assert_image_impl(path, actual, min_permissible_similarity)
 }
 
 fn assert_image_impl<P: AsRef<std::path::Path>>(
     path: P,
     actual: &image::DynamicImage,
     min_permissible_similarity: f64,
-    operational_failure: OperationalFailure,
 ) -> Result<(), AssertImageError> {
     let path = path.as_ref();
     let var = std::env::var_os(CRATE_ENV_VAR);
@@ -286,12 +272,12 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
         .unwrap_or_default();
 
     if mode == Mode::Overwrite {
-        if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
-            operational_failure.handle(AssertImageError::WriteImage {
+        actual
+            .save_with_format(path, image::ImageFormat::Png)
+            .map_err(|e| AssertImageError::WriteImage {
                 path: path.to_path_buf(),
                 source: e,
             })?;
-        }
         return Ok(());
     }
 
@@ -299,27 +285,33 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
     let expected = match image::io::Reader::open(path) {
         Ok(s) => match s.decode() {
             Ok(image) => image,
-            Err(e) => operational_failure.handle(AssertImageError::DecodeImage {
-                path: path.to_path_buf(),
-                source: e,
-            })?,
+            Err(e) => {
+                return Err(AssertImageError::DecodeImage {
+                    path: path.to_path_buf(),
+                    source: e,
+                })
+            }
         },
         Err(e) => match e.kind() {
             // We take the dimensions from the original image.
             std::io::ErrorKind::NotFound => image::DynamicImage::new_rgba16(actual.width(), actual.height()),
-            _ => operational_failure.handle(AssertImageError::ReadImage {
-                path: path.to_path_buf(),
-                source: e,
-            })?,
+            _ => {
+                return Err(AssertImageError::ReadImage {
+                    path: path.to_path_buf(),
+                    source: e,
+                })
+            }
         },
     };
 
     // Compare the two images.
     let result = match image_compare::rgba_hybrid_compare(&expected.to_rgba8(), &actual.to_rgba8()) {
         Ok(result) => result,
-        Err(source) => operational_failure.handle(AssertImageError::CompareImages {
-            source: Box::new(source),
-        })?,
+        Err(source) => {
+            return Err(AssertImageError::CompareImages {
+                source: Box::new(source),
+            })
+        }
     };
 
     // The SSIM score should be near 0, this is tweakable from the consumer, since they likely
@@ -330,31 +322,27 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
         let artifact_path = std::path::Path::new("artifacts/").join(path);
         if let Some(parent) = artifact_path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
-                operational_failure.handle(AssertImageError::CreateDirectory {
+                return Err(AssertImageError::CreateDirectory {
                     path: parent.to_path_buf(),
                     source: e,
-                })?;
+                });
             }
         }
         if let Err(source) = actual.save_with_format(&artifact_path, image::ImageFormat::Png) {
-            let panic_message = format!("unable to write image to {}: {source}", path.display());
-            operational_failure.handle_with_panic_message(
-                AssertImageError::WriteImage {
-                    path: artifact_path,
-                    source,
-                },
-                panic_message,
-            )?;
+            return Err(AssertImageError::WriteImage {
+                path: artifact_path,
+                source,
+            });
         }
     }
 
     if image_mismatch {
         if mode == Mode::UpdateOnMismatch {
             if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
-                operational_failure.handle(AssertImageError::WriteImage {
+                return Err(AssertImageError::WriteImage {
                     path: path.to_path_buf(),
                     source: e,
-                })?;
+                });
             }
             return Ok(());
         }
@@ -440,9 +428,16 @@ mod tests {
         let actual = image::DynamicImage::ImageRgba8(actual);
 
         let error = try_assert_image("tests/dog1.png", &actual, 1.0).unwrap_err();
+        let panic = std::panic::catch_unwind(|| assert_image("tests/dog1.png", &actual, 1.0)).unwrap_err();
+        let panic_message = panic
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| panic.downcast_ref::<&str>().copied())
+            .unwrap();
 
         assert!(matches!(&error, AssertImageError::ImageMismatch { .. }));
         assert!(error.to_string().starts_with("image (`tests/dog1.png`) score is `"));
+        assert!(panic_message.starts_with("assertion failed: image (`tests/dog1.png`) score is `"));
     }
 
     #[test]
