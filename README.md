@@ -32,7 +32,8 @@ let actual = get_image();
 twenty_twenty::assert_image("tests/dog1.png", &actual, 0.9);
 ```
 
-If the output doesn't match, the program will `panic!` and emit the difference in the score.
+If the output doesn't match, `assert_image` will `panic!` and emit the difference in the score. Use
+`try_assert_image` to handle the error and customize its message instead.
 
 To accept the changes from `get_h264_frame()` or `get_image()`, run with `TWENTY_TWENTY=overwrite`.
 

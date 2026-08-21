@@ -36,7 +36,8 @@
 //! twenty_twenty::assert_image("tests/dog1.png", &actual, 0.9);
 //! ```
 //!
-//! If the output doesn't match, the program will `panic!` and emit the difference in the score.
+//! If the output doesn't match, [`assert_image`] will `panic!` and emit the difference in the score.
+//! Use [`try_assert_image`] to handle the error instead.
 //!
 //! To accept the changes from `get_h264_frame()` or `get_image()`, run with
 //! `TWENTY_TWENTY=overwrite`.
@@ -114,6 +115,22 @@ impl std::str::FromStr for Mode {
     }
 }
 
+#[derive(Clone, Copy)]
+enum OperationalFailure {
+    Panic,
+    Return,
+}
+
+impl OperationalFailure {
+    #[track_caller]
+    fn handle<T>(self, error: anyhow::Error) -> anyhow::Result<T> {
+        match self {
+            Self::Panic => panic!("{error}"),
+            Self::Return => Err(error),
+        }
+    }
+}
+
 /// Compare the contents of the file to the image provided.
 ///
 /// `min_permissible_similarity` is a floating point value between `0.0` and `1.0`. If the two compared images are less similar than the `min_permissible_similarity` threshold,
@@ -123,15 +140,33 @@ impl std::str::FromStr for Mode {
 /// If the images are identical, the score will be `1.0`.
 #[track_caller]
 pub fn assert_image<P: AsRef<std::path::Path>>(path: P, actual: &image::DynamicImage, min_permissible_similarity: f64) {
-    if let Err(e) = assert_image_impl(path, actual, min_permissible_similarity) {
+    if let Err(e) = assert_image_impl(path, actual, min_permissible_similarity, OperationalFailure::Panic) {
         panic!("assertion failed: {e}")
     }
 }
 
-pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
+/// Compare the contents of the file to the image provided, returning an error if they do not match.
+///
+/// This is the non-panicking equivalent of [`assert_image`].
+/// `min_permissible_similarity` and the `TWENTY_TWENTY` modes behave identically for both functions.
+///
+/// # Errors
+///
+/// Returns an error if the images do not meet the similarity threshold or if reading, decoding,
+/// comparing, or writing an image fails.
+pub fn try_assert_image<P: AsRef<std::path::Path>>(
     path: P,
     actual: &image::DynamicImage,
     min_permissible_similarity: f64,
+) -> anyhow::Result<()> {
+    assert_image_impl(path, actual, min_permissible_similarity, OperationalFailure::Return)
+}
+
+fn assert_image_impl<P: AsRef<std::path::Path>>(
+    path: P,
+    actual: &image::DynamicImage,
+    min_permissible_similarity: f64,
+    operational_failure: OperationalFailure,
 ) -> anyhow::Result<()> {
     let path = path.as_ref();
     let var = std::env::var_os(CRATE_ENV_VAR);
@@ -144,27 +179,28 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
 
     if mode == Mode::Overwrite {
         if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
-            panic!("unable to write image to {}: {}", path.display(), e);
+            operational_failure.handle(anyhow::anyhow!("unable to write image to {}: {}", path.display(), e))?;
         }
         return Ok(());
     }
 
     // Treat a nonexistent file like an empty image.
     let expected = match image::io::Reader::open(path) {
-        Ok(s) => s.decode().expect("decoding image from path failed"),
+        Ok(s) => match s.decode() {
+            Ok(image) => image,
+            Err(e) => operational_failure.handle(anyhow::anyhow!("decoding image from path failed: {e:?}"))?,
+        },
         Err(e) => match e.kind() {
             // We take the dimensions from the original image.
             std::io::ErrorKind::NotFound => image::DynamicImage::new_rgba16(actual.width(), actual.height()),
-            _ => panic!("unable to read contents of {}: {}", path.display(), e),
+            _ => operational_failure.handle(anyhow::anyhow!("unable to read contents of {}: {}", path.display(), e))?,
         },
     };
 
     // Compare the two images.
     let result = match image_compare::rgba_hybrid_compare(&expected.to_rgba8(), &actual.to_rgba8()) {
         Ok(result) => result,
-        Err(err) => {
-            panic!("could not compare the images {err}")
-        }
+        Err(err) => operational_failure.handle(anyhow::anyhow!("could not compare the images {err}"))?,
     };
 
     // The SSIM score should be near 0, this is tweakable from the consumer, since they likely
@@ -175,18 +211,18 @@ pub(crate) fn assert_image_impl<P: AsRef<std::path::Path>>(
         let artifact_path = std::path::Path::new("artifacts/").join(path);
         if let Some(parent) = artifact_path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
-                panic!("unable to create directory {}: {e}", parent.display());
+                operational_failure.handle(anyhow::anyhow!("unable to create directory {}: {e}", parent.display()))?;
             }
         }
         if let Err(e) = actual.save_with_format(artifact_path, image::ImageFormat::Png) {
-            panic!("unable to write image to {}: {}", path.display(), e);
+            operational_failure.handle(anyhow::anyhow!("unable to write image to {}: {}", path.display(), e))?;
         }
     }
 
     if image_mismatch {
         if mode == Mode::UpdateOnMismatch {
             if let Err(e) = actual.save_with_format(path, image::ImageFormat::Png) {
-                panic!("unable to write image to {}: {}", path.display(), e);
+                operational_failure.handle(anyhow::anyhow!("unable to write image to {}: {}", path.display(), e))?;
             }
             return Ok(());
         }

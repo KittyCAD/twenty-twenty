@@ -14,7 +14,12 @@ use ffmpeg_next as ffmpeg;
 pub fn assert_h264_frame<P: AsRef<std::path::Path>>(path: P, actual: &[u8], min_permissible_similarity: f64) {
     match h264_frame_to_image(actual) {
         Ok(image) => {
-            if let Err(e) = super::assert_image_impl(path, &image, min_permissible_similarity) {
+            if let Err(e) = super::assert_image_impl(
+                path,
+                &image,
+                min_permissible_similarity,
+                super::OperationalFailure::Panic,
+            ) {
                 panic!("assertion failed: {e}")
             }
         }
