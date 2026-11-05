@@ -335,7 +335,7 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
         }
         if let Err(source) = actual.save_with_format(&artifact_path, image::ImageFormat::Png) {
             return Err(AssertImageError::WriteImage {
-                path: path.to_path_buf(),
+                path: p.relative_path(),
                 source,
             });
         }
@@ -408,6 +408,17 @@ impl ArtifactPath {
             &self.cr
         };
 
+        ws.join(self.relative_path())
+    }
+
+    /// Get the relative path to the artifact.
+    fn relative_path(&self) -> PathBuf {
+        let ws = if !self.workspace.is_empty() {
+            &self.workspace
+        } else {
+            &self.cr
+        };
+
         let relative_to_root = self.artifact.strip_prefix(ws).unwrap_or(&self.artifact);
 
         // If we're in a workspace, this will be the folder the crate is in. If we're in a single
@@ -417,7 +428,7 @@ impl ArtifactPath {
         // Prevent double nesting crate-scoped files
         let relative_to_root = relative_to_root.strip_prefix(crate_prefix).unwrap_or(relative_to_root);
 
-        ws.join("artifacts").join(crate_prefix).join(relative_to_root)
+        Path::new("artifacts").join(crate_prefix).join(relative_to_root)
     }
 }
 
@@ -577,6 +588,11 @@ mod tests {
                 p.artifact_path(),
                 PathBuf::from("/home/foo/projects/twenty-twenty/artifacts/some-crate/tests/medial/foo/test-1.png")
             );
+
+            assert_eq!(
+                p.relative_path(),
+                PathBuf::from("artifacts/some-crate/tests/medial/foo/test-1.png")
+            )
         }
 
         // A workspace with an artifact referenced using an absolute path
@@ -592,6 +608,11 @@ mod tests {
                 p.artifact_path(),
                 PathBuf::from("/home/foo/projects/twenty-twenty/artifacts/some-crate/tests/medial/foo/test-1.png")
             );
+
+            assert_eq!(
+                p.relative_path(),
+                PathBuf::from("artifacts/some-crate/tests/medial/foo/test-1.png")
+            )
         }
 
         #[test]
@@ -606,6 +627,11 @@ mod tests {
                 p.artifact_path(),
                 PathBuf::from("/home/foo/projects/twenty-twenty/artifacts/tests/medial/foo/test-1.png")
             );
+
+            assert_eq!(
+                p.relative_path(),
+                PathBuf::from("artifacts/tests/medial/foo/test-1.png")
+            )
         }
 
         #[test]
@@ -620,6 +646,11 @@ mod tests {
                 p.artifact_path(),
                 PathBuf::from("/home/foo/projects/twenty-twenty/artifacts/tests/medial/foo/test-1.png")
             );
+
+            assert_eq!(
+                p.relative_path(),
+                PathBuf::from("artifacts/tests/medial/foo/test-1.png")
+            )
         }
 
         #[test]
@@ -634,6 +665,11 @@ mod tests {
                 p.artifact_path(),
                 PathBuf::from("/home/foo/projects/twenty-twenty/artifacts/tests/medial/foo/test-1.png")
             );
+
+            assert_eq!(
+                p.relative_path(),
+                PathBuf::from("artifacts/tests/medial/foo/test-1.png")
+            )
         }
     }
 }
