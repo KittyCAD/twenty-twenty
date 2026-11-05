@@ -335,7 +335,7 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
         }
         if let Err(source) = actual.save_with_format(&artifact_path, image::ImageFormat::Png) {
             return Err(AssertImageError::WriteImage {
-                path: artifact_path,
+                path: path.to_path_buf(),
                 source,
             });
         }
