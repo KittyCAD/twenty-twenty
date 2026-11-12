@@ -80,13 +80,15 @@
 
 #[cfg(feature = "h264")]
 mod h264;
+use std::path::{Path, PathBuf};
+
 #[cfg(feature = "h264")]
 pub use h264::assert_h264_frame;
 
 const CRATE_ENV_VAR: &str = "TWENTY_TWENTY";
 
 /// The different modes available for the TWENTY_TWENTY environment variable.
-#[derive(Default, PartialEq)]
+#[derive(Default, PartialEq, Debug, Copy, Clone)]
 enum Mode {
     /// Only assert the image diff is within the given threshold.
     #[default]
@@ -319,7 +321,10 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
     let image_mismatch = result.score < min_permissible_similarity;
 
     if mode == Mode::StoreArtifact || (mode == Mode::StoreArtifactOnMismatch && image_mismatch) {
-        let artifact_path = std::path::Path::new("artifacts/").join(path);
+        let p = ArtifactPath::new(path.to_path_buf());
+
+        let artifact_path = p.artifact_path();
+
         if let Some(parent) = artifact_path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
                 return Err(AssertImageError::CreateDirectory {
@@ -330,7 +335,7 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
         }
         if let Err(source) = actual.save_with_format(&artifact_path, image::ImageFormat::Png) {
             return Err(AssertImageError::WriteImage {
-                path: artifact_path,
+                path: p.relative_path(),
                 source,
             });
         }
@@ -354,6 +359,77 @@ fn assert_image_impl<P: AsRef<std::path::Path>>(
     }
 
     Ok(())
+}
+
+/// Get the full path to the current workspace.
+///
+/// If only a crate is found, the path to the crate root will be returned. If no workspace is
+/// present at all, `None` will be returned.
+///
+/// Implementation taken from <https://stackoverflow.com/a/74942075/383609>.
+fn workspace_dir() -> Option<PathBuf> {
+    let output = std::process::Command::new(env!("CARGO"))
+        .arg("locate-project")
+        .arg("--workspace")
+        .arg("--message-format=plain")
+        .output()
+        .ok()?
+        .stdout;
+
+    let cargo_path = std::path::Path::new(std::str::from_utf8(&output).expect("bad UTF8 in path").trim());
+
+    Some(cargo_path.parent().unwrap_or(cargo_path).to_path_buf())
+}
+
+#[derive(Debug)]
+struct ArtifactPath {
+    workspace: PathBuf,
+    // Crate
+    cr: PathBuf,
+    artifact: PathBuf,
+}
+
+impl ArtifactPath {
+    fn new(artifact: PathBuf) -> Self {
+        let cr = std::env::current_dir().expect("unable to get current dir");
+
+        Self {
+            workspace: workspace_dir().unwrap_or(cr.clone()),
+            cr,
+            artifact,
+        }
+    }
+
+    /// Get the absolute path to the final artifact location.
+    fn artifact_path(&self) -> PathBuf {
+        let ws = if !self.workspace.is_empty() {
+            &self.workspace
+        } else {
+            &self.cr
+        };
+
+        ws.join(self.relative_path())
+    }
+
+    /// Get the relative path to the artifact.
+    fn relative_path(&self) -> PathBuf {
+        let ws = if !self.workspace.is_empty() {
+            &self.workspace
+        } else {
+            &self.cr
+        };
+
+        let relative_to_root = self.artifact.strip_prefix(ws).unwrap_or(&self.artifact);
+
+        // If we're in a workspace, this will be the folder the crate is in. If we're in a single
+        // crate, this will be empty.
+        let crate_prefix = self.cr.strip_prefix(ws).unwrap_or(Path::new(""));
+
+        // Prevent double nesting crate-scoped files
+        let relative_to_root = relative_to_root.strip_prefix(crate_prefix).unwrap_or(relative_to_root);
+
+        Path::new("artifacts").join(crate_prefix).join(relative_to_root)
+    }
 }
 
 #[cfg(test)]
@@ -493,5 +569,107 @@ mod tests {
             error => panic!("expected a write error, got {error:?}"),
         }
         assert!(panic_message.starts_with(&format!("unable to write image to {}:", expected_path.display())));
+    }
+
+    mod path_normalisation {
+        use crate::ArtifactPath;
+        use std::path::PathBuf;
+
+        // A workspace with an artifact referenced using a relative path
+        #[test]
+        fn workspace_crate_relative() {
+            let p = ArtifactPath {
+                workspace: PathBuf::from("/home/foo/projects/twenty-twenty"),
+                cr: PathBuf::from("/home/foo/projects/twenty-twenty/some-crate"),
+                artifact: PathBuf::from("tests/medial/foo/test-1.png"),
+            };
+
+            assert_eq!(
+                p.artifact_path(),
+                PathBuf::from("/home/foo/projects/twenty-twenty/artifacts/some-crate/tests/medial/foo/test-1.png")
+            );
+
+            assert_eq!(
+                p.relative_path(),
+                PathBuf::from("artifacts/some-crate/tests/medial/foo/test-1.png")
+            )
+        }
+
+        // A workspace with an artifact referenced using an absolute path
+        #[test]
+        fn workspace_crate_absolute() {
+            let p = ArtifactPath {
+                workspace: PathBuf::from("/home/foo/projects/twenty-twenty"),
+                cr: PathBuf::from("/home/foo/projects/twenty-twenty/some-crate"),
+                artifact: PathBuf::from("/home/foo/projects/twenty-twenty/some-crate/tests/medial/foo/test-1.png"),
+            };
+
+            assert_eq!(
+                p.artifact_path(),
+                PathBuf::from("/home/foo/projects/twenty-twenty/artifacts/some-crate/tests/medial/foo/test-1.png")
+            );
+
+            assert_eq!(
+                p.relative_path(),
+                PathBuf::from("artifacts/some-crate/tests/medial/foo/test-1.png")
+            )
+        }
+
+        #[test]
+        fn single_crate_relative() {
+            let p = ArtifactPath {
+                workspace: PathBuf::from("/home/foo/projects/twenty-twenty"),
+                cr: PathBuf::from("/home/foo/projects/twenty-twenty"),
+                artifact: PathBuf::from("tests/medial/foo/test-1.png"),
+            };
+
+            assert_eq!(
+                p.artifact_path(),
+                PathBuf::from("/home/foo/projects/twenty-twenty/artifacts/tests/medial/foo/test-1.png")
+            );
+
+            assert_eq!(
+                p.relative_path(),
+                PathBuf::from("artifacts/tests/medial/foo/test-1.png")
+            )
+        }
+
+        #[test]
+        fn single_crate_absolute() {
+            let p = ArtifactPath {
+                workspace: PathBuf::from("/home/foo/projects/twenty-twenty"),
+                cr: PathBuf::from("/home/foo/projects/twenty-twenty"),
+                artifact: PathBuf::from("/home/foo/projects/twenty-twenty/tests/medial/foo/test-1.png"),
+            };
+
+            assert_eq!(
+                p.artifact_path(),
+                PathBuf::from("/home/foo/projects/twenty-twenty/artifacts/tests/medial/foo/test-1.png")
+            );
+
+            assert_eq!(
+                p.relative_path(),
+                PathBuf::from("artifacts/tests/medial/foo/test-1.png")
+            )
+        }
+
+        #[test]
+        fn crate_but_no_workspace() {
+            let p = ArtifactPath {
+                workspace: PathBuf::default(),
+                cr: PathBuf::from("/home/foo/projects/twenty-twenty"),
+                artifact: PathBuf::from("/home/foo/projects/twenty-twenty/tests/medial/foo/test-1.png"),
+            };
+
+            assert_eq!(
+                p.artifact_path(),
+                PathBuf::from("/home/foo/projects/twenty-twenty/artifacts/tests/medial/foo/test-1.png")
+            );
+
+            assert_eq!(
+                p.relative_path(),
+                PathBuf::from("artifacts/tests/medial/foo/test-1.png")
+            )
+        }
     }
 }
