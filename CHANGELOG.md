@@ -1,3 +1,7 @@
+# 0.8.5
+
+- Fix `TWENTY_TWENTY=store-artifact-on-mismatch` when in a Cargo workspace
+
 # 0.8.4
 
 - Remove anyhow dependency
