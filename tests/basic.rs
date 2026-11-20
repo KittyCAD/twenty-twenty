@@ -1,4 +1,6 @@
-use twenty_twenty::{assert_h264_frame, assert_image};
+#[cfg(feature = "h264")]
+use twenty_twenty::assert_h264_frame;
+use twenty_twenty::assert_image;
 
 #[test]
 fn good() {
@@ -13,18 +15,21 @@ fn bad() {
     assert_image("tests/dog2.png", &actual, 1.0);
 }
 
+#[cfg(feature = "h264")]
 #[test]
 fn good_h264() {
     let actual = std::fs::read("tests/initial-grid.h264").unwrap();
     assert_h264_frame("tests/initial-grid.png", &actual, 0.999);
 }
 
+#[cfg(feature = "h264")]
 #[test]
 fn good_h264_multiple_frames() {
     let actual = std::fs::read("tests/multiple-frames.h264").unwrap();
     assert_h264_frame("tests/multiple-frames.png", &actual, 0.999);
 }
 
+#[cfg(feature = "h264")]
 #[test]
 #[should_panic]
 fn bad_h264() {

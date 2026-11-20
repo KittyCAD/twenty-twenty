@@ -572,8 +572,9 @@ mod tests {
     }
 
     mod path_normalisation {
-        use crate::ArtifactPath;
         use std::path::PathBuf;
+
+        use crate::ArtifactPath;
 
         // A workspace with an artifact referenced using a relative path
         #[test]
