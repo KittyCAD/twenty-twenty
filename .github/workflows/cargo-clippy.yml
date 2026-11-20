@@ -43,5 +43,8 @@ jobs:
             libswscale-dev \
             --no-install-recommends
 
-      - name: Run clippy
-        run: cargo clippy --workspace --examples --tests --benches --all-features -- -D warnings
+      - name: Run clippy (all features)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Run clippy (default features)
+        run: cargo clippy --workspace --all-targets -- -D warnings
